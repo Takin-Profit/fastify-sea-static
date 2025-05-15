@@ -14,12 +14,48 @@ import path from "node:path"
 import fp from "fastify-plugin"
 import send from "@fastify/send"
 import contentDisposition from "content-disposition"
-import { getAsset, isSea } from "node:sea"
+
+// Complete Sea API interface matching the Node.js type definitions
+export interface SeaAssetProvider {
+	/**
+	 * @return Whether this script is running inside a single-executable application.
+	 */
+	isSea(): boolean
+
+	/**
+	 * This method can be used to retrieve the assets configured to be bundled into the
+	 * single-executable application at build time.
+	 * An error is thrown when no matching asset can be found.
+	 */
+	getAsset(key: string, encoding?: string): ArrayBuffer | string
+
+	/**
+	 * Similar to `sea.getAsset()`, but returns the result in a `Blob`.
+	 * An error is thrown when no matching asset can be found.
+	 */
+	getAssetAsBlob?: (
+		key: string,
+		options?: {
+			type: string
+		}
+	) => Blob
+
+	/**
+	 * This method can be used to retrieve the assets configured to be bundled into the
+	 * single-executable application at build time.
+	 * An error is thrown when no matching asset can be found.
+	 *
+	 * Unlike `sea.getAsset()` or `sea.getAssetAsBlob()`, this method does not
+	 * return a copy. Instead, it returns the raw asset bundled inside the executable.
+	 */
+	getRawAsset?: (key: string) => ArrayBuffer
+}
 
 /**
  * Options for the fastify-sea-static plugin
  */
 export interface FastifySeaStaticOptions {
+	assetProvider?: SeaAssetProvider
 	/** Root directory in the SEA assets (default: 'client') */
 	root?: string
 	/** URL path prefix (default: '/') */
@@ -92,6 +128,44 @@ declare module "fastify" {
 	}
 }
 
+/**
+ * Get the SEA module or a fallback if not in a SEA environment
+ * This is a function to delay the require until runtime
+ */
+/**
+ * Get the SEA module or a fallback if not in a SEA environment
+ * This is a function to delay the require until runtime
+ */
+function getSeaModule(): SeaAssetProvider {
+	try {
+		// Only try to require node:sea in a dynamic context
+		return require("node:sea")
+	} catch (e) {
+		// Create a mock provider that matches the interface
+		const mockProvider = {
+			isSea: () => false,
+
+			// Implementation for both overloads
+			getAsset(key: string, encoding?: string): ArrayBuffer | string {
+				if (encoding) {
+					return "" // String version when encoding is provided
+				}
+				return new ArrayBuffer(0) // ArrayBuffer when no encoding
+			},
+
+			getAssetAsBlob: (key: string, options?: { type: string }): Blob => {
+				return new Blob([], { type: options?.type })
+			},
+
+			getRawAsset: (key: string): ArrayBuffer => {
+				return new ArrayBuffer(0)
+			},
+		}
+
+		// Cast to the correct interface
+		return mockProvider as SeaAssetProvider
+	}
+}
 // Cache for MIME types to avoid repeated lookups
 const mimeTypeCache = new Map<string, string>()
 
@@ -102,6 +176,8 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 	fastify: FastifyInstance,
 	opts: FastifySeaStaticOptions
 ): Promise<void> => {
+	// Use the provided asset provider or get the default one
+	const { isSea, getAsset } = opts.assetProvider || getSeaModule()
 	// Validate if we're running in a SEA environment
 	if (!isSea()) {
 		fastify.log.warn(
@@ -268,7 +344,6 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 
 		// Build the full asset path
 		let assetPath = path.posix.join(root, cleanFilepath)
-		let isDirectory = false
 
 		try {
 			try {
@@ -277,7 +352,7 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 			} catch (err) {
 				// If direct path fails, check if it's a directory request
 				if (cleanFilepath === "" || cleanFilepath.endsWith("/")) {
-					isDirectory = true
+					let foundIndex = false
 
 					// Try to find an index file
 					for (const index of indexFiles) {
@@ -285,14 +360,15 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 							const indexPath = path.posix.join(assetPath, index)
 							getAsset(indexPath)
 							assetPath = indexPath
+							foundIndex = true
 							break
 						} catch {
 							// Continue trying other index files
 						}
 					}
 
-					// If still a directory and no index file found
-					if (isDirectory) {
+					// If no index file found, return 404
+					if (!foundIndex) {
 						reply.callNotFound()
 						return reply
 					}
@@ -328,7 +404,7 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 			}
 
 			// Get the asset content
-			const asset = getAsset(assetPath)
+			const asset = getAsset(assetPath) as ArrayBuffer
 
 			// Set status code (200 OK)
 			reply.code(200)
@@ -348,8 +424,8 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 			// Set ETag header if needed
 			if (options.etag !== false && opts.etag !== false) {
 				// Create a simple ETag based on the first bytes of the content and file size
-				const assetSize = asset.byteLength
-				const etag = Buffer.from(asset.slice(0, Math.min(100, assetSize)))
+				const assetSize = asset?.byteLength
+				const etag = Buffer.from(asset?.slice(0, Math.min(100, assetSize)))
 					.toString("base64")
 					.substring(0, 16)
 				reply.header("etag", `"${etag}-${assetSize}"`)
@@ -362,7 +438,7 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 
 			// If custom headers function is provided, call it
 			if (opts.setHeaders) {
-				opts.setHeaders(reply.raw, assetPath, { size: asset.byteLength })
+				opts.setHeaders(reply.raw, assetPath, { size: asset?.byteLength })
 			}
 
 			// Create a readable stream from the asset
@@ -388,7 +464,6 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 			throw err
 		}
 	}
-
 	/**
 	 * Get the content type based on file extension
 	 */
