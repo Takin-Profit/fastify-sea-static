@@ -1,18 +1,35 @@
-fastify-sea-static
+# fastify-sea-static
+
 A Fastify plugin for serving static files from Node.js SEA (Single Executable Applications) assets.
-Features
 
-Serves static files from SEA assets with proper MIME types and headers
-API compatible with @fastify/static for easy migration
-TypeScript support with full type definitions
-Support for index files and directory redirection
-ETag and cache control headers for optimal performance
-Customizable options for flexibility
+[![npm version](https://img.shields.io/npm/v/fastify-sea-static.svg)](https://www.npmjs.com/package/fastify-sea-static)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![Fastify](https://img.shields.io/badge/Fastify-5.x-orange)](https://www.fastify.io/)
 
-Installation
-bashnpm install fastify-sea-static
-Usage
-typescriptimport Fastify from 'fastify'
+## Description
+
+This plugin allows you to serve static files that are embedded in a Node.js Single Executable Application (SEA) through Fastify's HTTP server. It provides a seamless integration with Fastify and works similar to `@fastify/static`, but specifically for SEA environments.
+
+## Features
+
+- Serve static files embedded in a Node.js SEA
+- TypeScript support with full type definitions
+- API compatible with `@fastify/static` for easy migration
+- Support for index files and directory redirects
+- Proper MIME type detection
+- Cache control and ETag support
+- Conditional requests
+
+## Installation
+
+```bash
+npm install fastify-sea-static
+```
+
+## Usage
+
+```typescript
+import Fastify from 'fastify'
 import { isSea } from 'node:sea'
 import fastifyStatic from '@fastify/static'
 import fastifySeaStatic from 'fastify-sea-static'
@@ -24,8 +41,14 @@ const fastify = Fastify({ logger: true })
 if (isSea()) {
   // In SEA mode, use fastify-sea-static
   fastify.register(fastifySeaStatic, {
+    // The URL prefix for serving files, e.g., '/static' would serve files at /static/*
     prefix: '/',
-    root: 'client', // The prefix used in your sea-config.json
+
+    // The root directory in the SEA assets structure (as defined in sea-config.json)
+    // For example, if your assets are stored as 'client/images/logo.png',
+    // setting root to 'client' would allow accessing at '/images/logo.png'
+    root: 'client',
+
     cacheControl: true,
     maxAge: 86400, // 1 day in seconds
   })
@@ -42,20 +65,32 @@ fastify.listen({ port: 3000 }, (err) => {
   if (err) throw err
   console.log(`Server listening on ${fastify.server.address().port}`)
 })
-Using the Reply Decorators
-The plugin adds sendFile and download decorators to the reply object:
-typescript// Send a specific file from the SEA assets
+```
+
+### Reply Decorators
+
+The plugin adds `sendFile` and `download` decorators to the Fastify reply object:
+
+```typescript
+// Send a specific file from the SEA assets
 fastify.get('/custom-route', (req, reply) => {
+  // This will serve the file from the SEA assets at '[root]/index.html'
   return reply.sendFile('index.html')
 })
 
 // Download a file with custom filename
 fastify.get('/download', (req, reply) => {
+  // This will serve the file with a Content-Disposition header
   return reply.download('assets/document.pdf', 'custom-name.pdf')
 })
-SPA Support
+```
+
+### SPA Support
+
 For Single Page Applications (SPAs), you can use a catch-all route:
-typescriptfastify.setNotFoundHandler((request, reply) => {
+
+```typescript
+fastify.setNotFoundHandler((request, reply) => {
   // For API routes, return 404 as usual
   if (request.url.startsWith('/api/')) {
     return reply.code(404).send({ error: 'Not found' })
@@ -64,75 +99,66 @@ typescriptfastify.setNotFoundHandler((request, reply) => {
   // For all other routes, serve the SPA index.html
   return reply.sendFile('index.html')
 })
-Options
-OptionTypeDefaultDescriptionrootstring'client'Root directory in the SEA assetsprefixstring'/'URL path prefixprefixAvoidTrailingSlashbooleanfalseIf true, no trailing "/" is added to the prefixschemaHidebooleantrueHide the route schema in documentationlogLevelstring-Log level for the pluginconstraintsobject-Route constraintsdecorateReplybooleantrueIf false, don't decorate reply with sendFileservebooleantrueIf false, don't set up routes, just add decoratorssetHeadersfunction-Function to set custom headers on the responsecacheControlbooleantrueEnable or disable Cache-Control headermaxAgenumber31536000Max age for Cache-Control header in seconds (1 year)etagbooleantrueEnable or disable ETag headerlastModifiedbooleantrueEnable or disable Last-Modified headerindexstring|string[]|false['index.html']Index filenames to try when accessing a directoryredirectbooleanfalseIf true, redirect to directory with trailing slash
-Creating a Node.js SEA with Static Assets
+```
 
-1. Create a SEA configuration file
-You'll need to generate a sea-config.json file that includes all your static assets:
-typescriptimport fs from 'node:fs/promises'
-import path from 'node:path'
+## Plugin Options
 
-const CLIENT_DIR = './dist/client'
-const CONFIG_PATH = './sea-config.json'
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `root` | `string` | `'client'` | The root directory within your SEA assets structure |
+| `prefix` | `string` | `'/'` | URL path prefix where the static files will be served |
+| `prefixAvoidTrailingSlash` | `boolean` | `false` | If true, no trailing "/" is added to the prefix |
+| `schemaHide` | `boolean` | `true` | Hide the route schema in documentation |
+| `logLevel` | `LogLevel` | - | Log level for the plugin |
+| `constraints` | `object` | - | Route constraints |
+| `decorateReply` | `boolean` | `true` | If false, don't decorate reply with sendFile |
+| `serve` | `boolean` | `true` | If false, don't set up routes, just add decorators |
+| `setHeaders` | `function` | - | Function to set custom headers on the response |
+| `cacheControl` | `boolean` | `true` | Enable or disable Cache-Control header |
+| `maxAge` | `number` | `31536000` | Max age for Cache-Control header in seconds (1 year) |
+| `etag` | `boolean` | `true` | Enable or disable ETag header |
+| `lastModified` | `boolean` | `true` | Enable or disable Last-Modified header |
+| `index` | `string\|string[]\|false` | `['index.html']` | Index filenames to try when accessing a directory |
+| `redirect` | `boolean` | `false` | If true, redirect to directory with trailing slash |
 
-async function scanDirectory(dir) {
-  const entries = await fs.readdir(dir, { withFileTypes: true })
-  let files = []
+## Reply Decorator Options
 
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      const subFiles = await scanDirectory(fullPath)
-      files = [...files, ...subFiles]
-    } else {
-      files.push(fullPath)
-    }
-  }
+### `reply.sendFile(filepath, options)`
 
-  return files
-}
+Sends a file from the SEA assets.
 
-async function generateSeaConfig() {
-  // Scan all files in the client directory
-  const files = await scanDirectory(CLIENT_DIR)
+- `filepath`: Path to the file relative to the root
+- `options`: Additional options (same as plugin options)
 
-  // Create assets object mapping
-  const assets = {}
-  for (const file of files) {
-    const relativePath = path.relative(CLIENT_DIR, file)
-    const key = `client/${relativePath}`
-    const value = path.resolve(file)
-    assets[key] = value
-  }
+You can also use `reply.sendFile(filepath, root, options)` to specify a different root directory.
 
-  // Create the SEA config
-  const seaConfig = {
-    main: './dist/server.js',
-    output: './app.blob',
-    disableExperimentalSEAWarning: true,
-    useSnapshot: false,
-    useCodeCache: true,
-    assets,
-  }
+### `reply.download(filepath, filename, options)`
 
-  // Write the config file
-  await fs.writeFile(CONFIG_PATH, JSON.stringify(seaConfig, null, 2))
-  console.log(`Generated sea-config.json with ${Object.keys(assets).length} assets`)
-}
+Sends a file with Content-Disposition header for download.
 
-generateSeaConfig()
-2. Build the SEA preparation blob
-bashnode --experimental-sea-config sea-config.json
-3. Create the SEA executable
-Follow the Node.js SEA documentation to create your executable.
-For example, on Linux:
-bash# Copy the node executable
-cp $(which node) app
+- `filepath`: Path to the file relative to the root
+- `filename`: Filename to use in the Content-Disposition header (optional)
+- `options`: Additional options (same as plugin options)
 
-# Inject the blob
+## Notes on SEA Assets Structure
 
-npx postject app NODE_SEA_BLOB app.blob \
-    --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
-License
+When using this plugin with a Node.js Single Executable Application (SEA), it's important to understand how assets are structured within the SEA:
+
+1. In your `sea-config.json`, assets are defined with a key/path structure
+2. The plugin's `root` option corresponds to the base directory in your asset keys
+3. For example, if your assets are structured as:
+
+   ```json
+   {
+     "assets": {
+       "client/index.html": "/path/to/index.html",
+       "client/css/style.css": "/path/to/style.css"
+     }
+   }
+   ```
+
+   Setting `root: 'client'` would allow accessing `index.html` at `/` and `style.css` at `/css/style.css`.
+
+## License
+
 MIT
