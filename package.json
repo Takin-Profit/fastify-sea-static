@@ -1,57 +1,68 @@
 {
-    "name": "fastify-sea-static",
-    "version": "1.0.0",
-    "description": "Fastify plugin for serving static files from Node.js SEA (Single Executable Applications) assets",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "scripts": {
-      "build": "tsc",
-      "prepublishOnly": "npm run build",
-      "test": "jest",
-      "lint": "eslint src/**/*.ts",
-      "format": "prettier --write \"src/**/*.ts\""
+  "name": "fastify-sea-static",
+  "version": "1.0.0",
+  "description": "Fastify plugin for serving static files from Node.js SEA (Single Executable Applications) assets",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "require": {
+      "types": "./dist/index.d.cts",
+      "default": "./dist/index.cjs"
     },
-    "keywords": [
-      "fastify",
-      "fastify-plugin",
-      "sea",
-      "static",
-      "single-executable-application",
-      "assets"
-    ],
-    "author": "",
-    "license": "MIT",
-    "dependencies": {
-      "@fastify/send": "^2.1.0",
-      "content-disposition": "^0.5.4",
-      "fastify-plugin": "^4.5.1"
-    },
-    "peerDependencies": {
-      "fastify": "^5.0.0"
-    },
-    "devDependencies": {
-      "@types/content-disposition": "^0.5.8",
-      "@types/node": "^20.11.20",
-      "fastify": "^5.0.0",
-      "jest": "^29.7.0",
-      "prettier": "^3.2.5",
-      "ts-jest": "^29.1.2",
-      "typescript": "^5.3.3"
-    },
-    "files": [
-      "dist",
-      "LICENSE",
-      "README.md"
-    ],
-    "engines": {
-      "node": ">=18.17.0"
-    },
-    "repository": {
-      "type": "git",
-      "url": "git+https://github.com/yourusername/fastify-sea-static.git"
-    },
-    "bugs": {
-      "url": "https://github.com/yourusername/fastify-sea-static/issues"
-    },
-    "homepage": "https://github.com/yourusername/fastify-sea-static#readme"
-  }
+    "import": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "format": "biome format --write src/**/*.ts",
+    "prepublishOnly": "npm run build",
+    "lint": "biome check src/**/*.ts"
+  },
+  "keywords": [
+    "fastify",
+    "fastify-plugin",
+    "sea",
+    "static",
+    "single-executable-application",
+    "assets"
+  ],
+  "author": "Takin Profit LLC",
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/send": "^4.0.0",
+    "content-disposition": "^0.5.4",
+    "fastify-plugin": "^5.0.1"
+  },
+  "peerDependencies": {
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@swc/core": "^1.11.24",
+    "@types/content-disposition": "^0.5.8",
+    "@types/node": "^22.15.18",
+    "fastify": "^5.3.3",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:Takin-Profit/fastify-sea-static.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Takin-Profit/fastify-sea-static/issues"
+  },
+  "homepage": "https://github.com/Takin-Profit/fastify-sea-static#readme"
+}
