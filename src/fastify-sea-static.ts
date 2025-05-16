@@ -55,6 +55,8 @@ export interface SeaAssetProvider {
  * Options for the fastify-sea-static plugin
  */
 export interface FastifySeaStaticOptions {
+	/** How to handle dotfiles: "allow", "deny", or "ignore" (default: "allow") */
+	dotfiles?: "allow" | "deny" | "ignore"
 	assetProvider?: SeaAssetProvider
 	/** Root directory in the SEA assets (default: 'client') */
 	root?: string
@@ -90,6 +92,8 @@ export interface FastifySeaStaticOptions {
 	index?: string | string[] | false
 	/** If true, redirect to directory with trailing slash (default: false) */
 	redirect?: boolean
+	  /** Whether to throw errors to be caught by Fastify's error handler */
+	  useErrorHandler?: boolean;
 }
 
 /**
@@ -106,6 +110,10 @@ export interface StaticFileOptions {
 	etag?: boolean
 	/** Enable or disable Last-Modified header */
 	lastModified?: boolean
+	/** How to handle dotfiles: "allow", "deny", or "ignore" */
+	dotfiles?: "allow" | "deny" | "ignore"
+	  /** Whether to throw errors to be caught by Fastify's error handler */
+	  useErrorHandler?: boolean;
 }
 
 // Extend FastifyReply interface to include our custom methods
@@ -329,141 +337,209 @@ const fastifySeaStatic: FastifyPluginAsync<FastifySeaStaticOptions> = async (
 		})
 	}
 
-	/**
-	 * Send a SEA asset to the client
-	 */
-	async function sendSeaAsset(
-		request: FastifyRequest,
-		reply: FastifyReply,
-		filepath: string,
-		root: string,
-		options: StaticFileOptions = {}
-	): Promise<FastifyReply> {
-		// Clean the filepath (remove leading slash and normalize path)
-		const cleanFilepath = filepath.replace(/^\/+/, "")
+/**
+ * Send a SEA asset to the client
+ */
+async function sendSeaAsset(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    filepath: string,
+    root: string,
+    options: StaticFileOptions = {}
+): Promise<FastifyReply> {
+    // Clean the filepath (remove leading slash and normalize path)
+    const cleanFilepath = filepath.replace(/^\/+/, "")
 
-		// Build the full asset path
-		let assetPath = path.posix.join(root, cleanFilepath)
+    // Get the useErrorHandler option (default to false for backward compatibility)
+    const useErrorHandler = options.useErrorHandler ?? opts.useErrorHandler ?? false;
 
-		try {
-			try {
-				// First try to get the asset directly
-				getAsset(assetPath)
-			} catch (err) {
-				// If direct path fails, check if it's a directory request
-				if (cleanFilepath === "" || cleanFilepath.endsWith("/")) {
-					let foundIndex = false
+    // Check if this is a dotfile request
+    const isDotfile = cleanFilepath.split('/').some(part => part.startsWith('.') && part !== '.' && part !== '..');
 
-					// Try to find an index file
-					for (const index of indexFiles) {
-						try {
-							const indexPath = path.posix.join(assetPath, index)
-							getAsset(indexPath)
-							assetPath = indexPath
-							foundIndex = true
-							break
-						} catch {
-							// Continue trying other index files
-						}
-					}
+    // Handle dotfiles according to the option
+    if (isDotfile) {
+        const dotfilesOption = options.dotfiles ?? opts.dotfiles ?? 'allow';
 
-					// If no index file found, return 404
-					if (!foundIndex) {
-						reply.callNotFound()
-						return reply
-					}
-				} else {
-					// Check if it's a directory without trailing slash
-					let foundIndex = false
-					for (const index of indexFiles) {
-						try {
-							const indexPath = path.posix.join(assetPath, index)
-							getAsset(indexPath)
+        if (dotfilesOption === 'deny') {
+            // Return 403 Forbidden for dotfiles
+            reply.code(403).send({ error: 'Forbidden' });
+            return reply;
+        // biome-ignore lint/style/noUselessElse: <explanation>
+        } else if (dotfilesOption === 'ignore') {
+            // Handle not found based on useErrorHandler option
+            if (useErrorHandler) {
+                const error = new Error(`File not found: ${filepath}`);
+				Object.assign(error, {
+					statusCode: 404
+				});
+                throw error;
+            // biome-ignore lint/style/noUselessElse: <explanation>
+            } else {
+                reply.callNotFound();
+                return reply;
+            }
+        }
+        // If 'allow', continue processing as normal
+    }
 
-							// If redirect is enabled, redirect to the path with trailing slash
-							if (opts.redirect) {
-								const redirectUrl = `${request.url}/`
-								reply.redirect(redirectUrl)
-								return reply
-							}
+    // Build the full asset path
+    let assetPath = path.posix.join(root, cleanFilepath)
 
-							// Otherwise serve the index file
-							assetPath = indexPath
-							foundIndex = true
-							break
-						} catch {
-							// Continue trying other index files
-						}
-					}
+    try {
+        try {
+            // First try to get the asset directly
+            getAsset(assetPath)
+        } catch (err) {
+            // If direct path fails, check if it's a directory request
+            if (cleanFilepath === "" || cleanFilepath.endsWith("/")) {
+                let foundIndex = false
 
-					// If no index file found and not a redirect, throw the error
-					if (!foundIndex) {
-						throw err
-					}
-				}
-			}
+                // Try to find an index file
+                for (const index of indexFiles) {
+                    try {
+                        const indexPath = path.posix.join(assetPath, index)
+                        getAsset(indexPath)
+                        assetPath = indexPath
+                        foundIndex = true
+                        break
+                    } catch {
+                        // Continue trying other index files
+                    }
+                }
 
-			// Get the asset content
-			const asset = getAsset(assetPath) as ArrayBuffer
+                // If no index file found, handle not found
+                if (!foundIndex) {
+                    if (useErrorHandler) {
+                        const error = new Error(`No index file found in directory: ${assetPath}`);
+						Object.assign(error, {
+							statusCode: 404
+						});
+                        throw error;
+                    // biome-ignore lint/style/noUselessElse: <explanation>
+                    } else {
+                        reply.callNotFound();
+                        return reply;
+                    }
+                }
+            } else {
+                // Check if it's a directory without trailing slash
+                let foundIndex = false
+                for (const index of indexFiles) {
+                    try {
+                        const indexPath = path.posix.join(assetPath, index)
+                        getAsset(indexPath)
 
-			// Set status code (200 OK)
-			reply.code(200)
+                        // If redirect is enabled, redirect to the path with trailing slash
+                        if (opts.redirect) {
+                            const redirectUrl = `${request.url}/`
+                            reply.redirect(redirectUrl)
+                            return reply
+                        }
 
-			// Set the content type based on the file extension
-			const contentType = getContentType(assetPath)
-			if (contentType) {
-				reply.header("content-type", contentType)
-			}
+                        // Otherwise serve the index file
+                        assetPath = indexPath
+                        foundIndex = true
+                        break
+                    } catch {
+                        // Continue trying other index files
+                    }
+                }
 
-			// Set cache control headers if needed
-			if (options.cacheControl !== false && opts.cacheControl !== false) {
-				const maxAge = options.maxAge ?? opts.maxAge ?? 31536000
-				reply.header("cache-control", `public, max-age=${maxAge}`)
-			}
+                // If no index file found and not a redirect, throw the error
+                if (!foundIndex) {
+                    throw err
+                }
+            }
+        }
 
-			// Set ETag header if needed
-			if (options.etag !== false && opts.etag !== false) {
-				// Create a simple ETag based on the first bytes of the content and file size
-				const assetSize = asset?.byteLength
-				const etag = Buffer.from(asset?.slice(0, Math.min(100, assetSize)))
-					.toString("base64")
-					.substring(0, 16)
-				reply.header("etag", `"${etag}-${assetSize}"`)
-			}
+        // Get the asset content
+        const asset = getAsset(assetPath) as ArrayBuffer
 
-			// Set Last-Modified header if needed
-			if (options.lastModified !== false && opts.lastModified !== false) {
-				reply.header("last-modified", new Date().toUTCString())
-			}
+        // Set the content type based on the file extension
+        const contentType = getContentType(assetPath)
+        if (contentType) {
+            reply.header("content-type", contentType)
+        }
 
-			// If custom headers function is provided, call it
-			if (opts.setHeaders) {
-				opts.setHeaders(reply.raw, assetPath, { size: asset?.byteLength })
-			}
+        // Set cache control headers if needed
+        if (options.cacheControl !== false && opts.cacheControl !== false) {
+            const maxAge = options.maxAge ?? opts.maxAge ?? 31536000
+            reply.header("cache-control", `public, max-age=${maxAge}`)
+        }
 
-			// Create a readable stream from the asset
-			const stream = Readable.from(Buffer.from(asset))
+        // Set ETag header if needed
+        if (options.etag !== false && opts.etag !== false) {
+            // Create a simple ETag based on the first bytes of the content and file size
+            const assetSize = asset?.byteLength
+            const etag = Buffer.from(asset?.slice(0, Math.min(100, assetSize)))
+                .toString("base64")
+                .substring(0, 16)
+            const etagValue = `"${etag}-${assetSize}"`
+            reply.header("etag", etagValue)
 
-			await reply.send(stream)
-			return reply
-		} catch (err) {
-			// If the asset doesn't exist, return 404
-			const errorMessage = err instanceof Error ? err.message : String(err)
+            // Check for conditional request (If-None-Match header)
+            const ifNoneMatch = request.headers['if-none-match']
+            if (ifNoneMatch && ifNoneMatch === etagValue) {
+                // If ETag matches, return 304 Not Modified without the body
+                reply.code(304).send()
+                return reply
+            }
+        }
 
-			if (
-				errorMessage.includes("No matching asset found") ||
-				errorMessage.includes("ENOENT") ||
-				errorMessage.includes("not found")
-			) {
-				reply.callNotFound()
-				return reply
-			}
+        // Set Last-Modified header if needed
+        if (options.lastModified !== false && opts.lastModified !== false) {
+            reply.header("last-modified", new Date().toUTCString())
+        }
 
-			// For other errors, pass to error handler
-			fastify.log.error(`Error serving SEA asset ${assetPath}: ${errorMessage}`)
-			throw err
-		}
-	}
+        // If custom headers function is provided, call it
+        if (opts.setHeaders) {
+            try {
+                // Pass the reply object directly, with size information
+                opts.setHeaders(reply, assetPath, { size: asset?.byteLength || 0 })
+            } catch (headerError) {
+                // Add error handling to prevent 500s
+                console.error(`Error setting headers: ${headerError}`)
+                // Continue without custom headers if there's an error
+            }
+        }
+
+        // Set status code (200 OK) - after all the header logic
+        reply.code(200)
+
+        // Create a readable stream from the asset
+        const stream = Readable.from(Buffer.from(asset))
+
+        await reply.send(stream)
+        return reply
+    } catch (err) {
+        // If the asset doesn't exist, handle not found based on useErrorHandler option
+        const errorMessage = err instanceof Error ? err.message : String(err)
+
+        if (
+            errorMessage.includes("No matching asset found") ||
+            errorMessage.includes("ENOENT") ||
+            errorMessage.includes("not found")
+        ) {
+            if (useErrorHandler) {
+                // Use custom error handler by throwing an error
+                const error = new Error(`File not found: ${filepath}`);
+				Object.assign(error, {
+					statusCode: 404
+				});
+                throw error;
+            // biome-ignore lint/style/noUselessElse: <explanation>
+            } else {
+                // Use standard not found handler
+                reply.callNotFound();
+                return reply;
+            }
+        }
+
+        // For other errors, log and re-throw
+        fastify.log.error(`Error serving SEA asset ${assetPath}: ${errorMessage}`)
+        throw err
+    }
+}
 	/**
 	 * Get the content type based on file extension
 	 */
