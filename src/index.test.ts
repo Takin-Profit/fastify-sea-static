@@ -313,8 +313,6 @@ test("allows disabling serving", async t => {
 	assert.equal(await customResponse.text(), TEST_CONTENT.index)
 })
 
-
-
 // 8. Test redirect option
 test("supports redirect option", async t => {
 	// Setup server with redirect option

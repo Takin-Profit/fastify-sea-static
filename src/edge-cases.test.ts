@@ -116,34 +116,31 @@ test("error handling", async t => {
 		)
 	})
 
-    await t.test("custom error handler", async (t: TestContext) => {
-        t.plan(3)
+	await t.test("custom error handler", async (t: TestContext) => {
+		t.plan(3)
 
-        const fastify = Fastify()
+		const fastify = Fastify()
 
-        // Custom error handler
-        fastify.setErrorHandler((err, request, reply) => {
-          reply
-            .code(500)
-            .type("text/plain")
-            .send(`Custom Error: ${err.message}`)
-        })
+		// Custom error handler
+		fastify.setErrorHandler((err, request, reply) => {
+			reply.code(500).type("text/plain").send(`Custom Error: ${err.message}`)
+		})
 
-        fastify.register(fastifySeaStatic, {
-          root: "client",
-          assetProvider: mockAssetProvider,
-          useErrorHandler: true // Enable this option to use the custom error handler
-        })
+		fastify.register(fastifySeaStatic, {
+			root: "client",
+			assetProvider: mockAssetProvider,
+			useErrorHandler: true, // Enable this option to use the custom error handler
+		})
 
-        t.after(() => fastify.close())
-        await fastify.listen({ port: 0 })
-        const port = (fastify.server.address() as AddressInfo).port
+		t.after(() => fastify.close())
+		await fastify.listen({ port: 0 })
+		const port = (fastify.server.address() as AddressInfo).port
 
-        const response = await fetch(`http://localhost:${port}/not-found.html`)
-        t.assert.deepStrictEqual(response.status, 500)
-        t.assert.deepStrictEqual(response.headers.get("content-type"), "text/plain")
-        t.assert.ok((await response.text()).includes("Custom Error"))
-      })
+		const response = await fetch(`http://localhost:${port}/not-found.html`)
+		t.assert.deepStrictEqual(response.status, 500)
+		t.assert.deepStrictEqual(response.headers.get("content-type"), "text/plain")
+		t.assert.ok((await response.text()).includes("Custom Error"))
+	})
 
 	await t.test("empty file", async (t: TestContext) => {
 		t.plan(3)

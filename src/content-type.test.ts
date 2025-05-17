@@ -190,38 +190,44 @@ test("register /content-type", async t => {
 	})
 })
 
-test('basic setHeaders functionality', async t => {
-    t.plan(1)
+test("basic setHeaders functionality", async t => {
+	t.plan(1)
 
-    const pluginOptions = {
-      root: "client",
-      prefix: '/simple',
-      assetProvider: mockAssetProvider,
-      // Extremely simple header setting
-      setHeaders: (reply: unknown) => {
-        (reply as FastifyReply)?.header('x-test', 'test-value')
-      }
-    }
+	const pluginOptions = {
+		root: "client",
+		prefix: "/simple",
+		assetProvider: mockAssetProvider,
+		// Extremely simple header setting
+		setHeaders: (reply: unknown) => {
+			;(reply as FastifyReply)?.header("x-test", "test-value")
+		},
+	}
 
-    const fastify = Fastify()
-    fastify.register(fastifySeaStatic, pluginOptions)
+	const fastify = Fastify()
+	fastify.register(fastifySeaStatic, pluginOptions)
 
-    t.after(() => fastify.close())
+	t.after(() => fastify.close())
 
-    await fastify.listen({ port: 0 })
-    const port = (fastify.server.address() as AddressInfo).port
+	await fastify.listen({ port: 0 })
+	const port = (fastify.server.address() as AddressInfo).port
 
-    await t.test('simple header test', async (t: TestContext) => {
-      t.plan(3)
+	await t.test("simple header test", async (t: TestContext) => {
+		t.plan(3)
 
-      // Add debugging to see exactly what we're requesting and what comes back
-      console.log(`Requesting http://localhost:${port}/simple/index.html`)
-      const response = await fetch(`http://localhost:${port}/simple/index.html`)
-      console.log(`Response status: ${response.status}`)
-      console.log(`Response headers: ${JSON.stringify(Object.fromEntries([...response.headers.entries()]))}`);
+		// Add debugging to see exactly what we're requesting and what comes back
+		console.log(`Requesting http://localhost:${port}/simple/index.html`)
+		const response = await fetch(`http://localhost:${port}/simple/index.html`)
+		console.log(`Response status: ${response.status}`)
+		console.log(
+			`Response headers: ${JSON.stringify(Object.fromEntries([...response.headers.entries()]))}`
+		)
 
-      t.assert.equal(response.status, 200, "Response should have status 200")
-      t.assert.ok(response.ok, "Response should be ok")
-      t.assert.equal(response.headers.get('x-test'), 'test-value', "Custom header should be present")
-    })
-  })
+		t.assert.equal(response.status, 200, "Response should have status 200")
+		t.assert.ok(response.ok, "Response should be ok")
+		t.assert.equal(
+			response.headers.get("x-test"),
+			"test-value",
+			"Custom header should be present"
+		)
+	})
+})
