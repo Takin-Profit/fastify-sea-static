@@ -1,6 +1,6 @@
 {
   "name": "fastify-sea-static",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Fastify plugin for serving static files from Node.js SEA (Single Executable Applications) assets",
   "type": "module",
   "main": "./dist/index.cjs",
