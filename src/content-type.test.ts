@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-import { test, type TestContext } from "node:test"
-import Fastify, { type FastifyReply } from "fastify"
 import type { AddressInfo } from "node:net"
+import { type TestContext, test } from "node:test"
+import Fastify, { type FastifyReply } from "fastify"
 import fastifySeaStatic, { type SeaAssetProvider } from "./fastify-sea-static"
 
 // Sample test content with various file types

@@ -20,7 +20,7 @@
     "build": "tsup",
     "format": "biome format --write src/*.ts",
     "prepublishOnly": "npm run build",
-    "lint": "biome check src/**/*.ts",
+    "lint": "biome check --write src/*.ts",
     "test": "tsx --test --experimental-test-module-mocks ./src/**/*.{spec,test}.ts"
   },
   "keywords": [

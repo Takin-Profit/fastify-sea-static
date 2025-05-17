@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+import path from "node:path"
+import { Readable } from "node:stream"
+import send from "@fastify/send"
+import contentDisposition from "content-disposition"
 import type {
 	FastifyInstance,
 	FastifyPluginAsync,
@@ -9,11 +13,7 @@ import type {
 	FastifyRequest,
 	LogLevel,
 } from "fastify"
-import { Readable } from "node:stream"
-import path from "node:path"
 import fp from "fastify-plugin"
-import send from "@fastify/send"
-import contentDisposition from "content-disposition"
 
 // Complete Sea API interface matching the Node.js type definitions
 export interface SeaAssetProvider {
